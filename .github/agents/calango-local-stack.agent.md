@@ -14,6 +14,18 @@ Você é o operador de ambiente local do ecossistema **Calango/Squamata** (works
 - Os arquivos `docker-compose.yml` e `Dockerfile` são **referência de produção**: não edite portas neles para resolver conflito local.
 - Portas conflitantes são resolvidas em `.env`, `.env.local` ou nos `vite.config.*`, nunca em código de aplicação.
 
+## Dependência crítica: Squamata-Login (SPOF)
+
+O `squamata-login` é o **único emissor de identidade** do ecossistema — Calango-Bot, Calango-Food e marianos-meat apenas validam o JWT que ele emite, usando `JWT_SECRET_LOGIN`. É **SPOF declarado** ([`Architecture.md` §1.1](../../Architecture.md) e [`constitution.md`](../../constitution.md)).
+
+Regras não negociáveis deste agente:
+
+1. **Subir o `squamata-login` primeiro**, sempre, mesmo que o pedido seja "só o Calango-Food". Se o usuário pedir apenas um app, avise que a autenticação depende do login e suba-o também (ou registre explicitamente que o app ficará sem login).
+2. **Derrubar o `squamata-login` por último.** Nunca reiniciá-lo durante a validação de outro serviço.
+3. **Nunca substituir o login** por mock, token fixo, `JWT_SECRET_LOGIN` alternativo ou login local em qualquer app — isso viola a constituição.
+4. **`JWT_SECRET_LOGIN` idêntico** em Squamata-Login, Calango-Bot e Calango-Food. Divergência se manifesta como 401 em cascata.
+5. **Diagnóstico de 401 em vários apps** começa pelo login (`GET /api/v1/health`), não pelo app que reclama.
+
 ## Portabilidade (Windows, Linux e macOS)
 
 - Todos os caminhos neste agente são **relativos à raiz do workspace** (`Squamata-login/...`, `Calango-bot/...`). **Nunca** use caminho absoluto com drive ou home (`c:\...`, `/home/...`, `/Users/...`).
@@ -57,7 +69,7 @@ Edite **somente** as chaves de porta/URL; preserve todas as demais (segredos, cr
 | Arquivo | Chaves locais |
 | :--- | :--- |
 | `Calango-bot/.env` | `PORT=3004`, `BACKEND_PORT=3003`, `REACT_APP_API_URL=http://localhost:3003`, `REACT_APP_WS_URL=http://localhost:3003`, `REACT_APP_LOGIN_URL=http://localhost:5174`, `REACT_APP_SQUAMATA_UPLOAD_API_URL=http://localhost:3005`, `CORS_ALLOWED_ORIGINS` contendo `http://localhost:3004` |
-| `Calango-food/.env` | `PORT=3002`, `VITE_API_URL=http://localhost:3002`, `VITE_LOGIN_URL=http://localhost:5174`, `VITE_SQUAMATA_URL=http://localhost:3005/generate-upload-url`, `GATEWAY_URL=http://localhost:3010` |
+| `Calango-food/.env` | `PORT=3002`, `VITE_API_URL=http://localhost:3002`, `VITE_LOGIN_URL=http://localhost:5174`, `VITE_SQUAMATA_URL=http://localhost:3005/api/v1/upload/generate-upload-url`, `GATEWAY_URL=http://localhost:3010` |
 | `Squamata-login/.env` | `PORT=3001` |
 | `Squamata-login/packages/frontend/.env.local` | `VITE_API_URL=http://localhost:3001/api/v1`, `VITE_CALANGO_FOOD_URL=http://localhost:5173`, `VITE_CALANGO_BOT_URL=http://localhost:3004` |
 | `Squamata-upload/.env` | `PORT=3005` |
@@ -89,7 +101,7 @@ Edite **somente** as chaves de porta/URL; preserve todas as demais (segredos, cr
    ```
 
 5. **Aplicar o mapa de ajustes** apenas nos arquivos que ainda estiverem com os valores errados. Nunca invente segredos: se faltar `JWT_SECRET`, `MONGO_URI`, `PAYLOAD_SECRET`, etc., pare e peça ao usuário.
-6. **Subir um processo por terminal**, na ordem: squamata-login backend/frontend → calango-food backend/frontend → calango-bot backend/frontend → squamata-upload → squamata-headless → squamata-gateway → squamata-cep → marianos-meat backend/frontend. Use execução em background quando disponível e devolva o ID de cada terminal.
+6. **Subir um processo por terminal**, na ordem: squamata-login backend/frontend → calango-food backend/frontend → calango-bot backend/frontend → squamata-upload → squamata-headless → squamata-gateway → squamata-cep → marianos-meat backend/frontend. Use execução em background quando disponível e devolva o ID de cada terminal. **A ordem não é estética:** `squamata-login` é dependência central de autenticação — os apps seguintes só conseguem validar login com ele no ar.
 7. **Validar** porta e saúde de cada serviço (abaixo). Para rotas que respondem 404, considere **serviço no ar** se a porta estiver em `Listen`.
 8. **Reportar** no formato de saída e entregar os comandos de parada/restart.
 
@@ -171,7 +183,7 @@ Se a URI estiver ausente ou inacessível: **não** troque para `mongodb://localh
 `curl` funciona no Linux, macOS, WSL e Windows 10+:
 
 ```bash
-curl -fsS http://localhost:3001/api/v1/auth/health              # squamata-login
+curl -fsS http://localhost:3001/api/v1/health              # squamata-login
 curl -fsS http://localhost:3011/                                # squamata-cep retorna JSON
 curl -fsS -o /dev/null -w '%{http_code}\n' http://localhost:3006/admin
 curl -s -o /dev/null --max-time 2 http://localhost:3005/ && echo "3005 up" || echo "3005 down"
@@ -179,11 +191,14 @@ curl -s -o /dev/null --max-time 2 http://localhost:3005/ && echo "3005 up" || ec
 
 ```powershell
 # Windows (PowerShell), equivalente
-Invoke-RestMethod http://localhost:3001/api/v1/auth/health
-Invoke-RestMethod http://localhost:3011/
+Invoke-RestMethod http://localhost:3001/api/v1/health
+Invoke-RestMethod http://localhost:3001/api/v1/health
+Invoke-RestMethod http://localhost:3011/api/v1/health
 Invoke-WebRequest http://localhost:3006/admin -UseBasicParsing
 (Test-NetConnection localhost -Port 3005).TcpTestSucceeded
 ```
+
+> O `squamata-login` (3001) é checado em `/api/v1/health` — caminho único. Se falhar, **nenhum** app do ecossistema conseguirá autenticar: reporte como bloqueio de plataforma, não como problema do app.
 
 ## Parar e reiniciar
 
@@ -215,16 +230,20 @@ Get-NetTCPConnection -LocalPort 3003 -State Listen |
 - **NÃO** usar caminho absoluto (`c:\...`, `/home/...`) nem separador `\` nos comandos: use caminhos relativos à raiz do workspace com `/`.
 - Use a sintaxe do shell detectado: `;` no PowerShell, `&&`/`;` em bash/zsh. Nunca misture.
 - **NÃO** subir serviços fora do workspace Calango (ex.: Mariano's é cliente satélite; só suba se o usuário pedir).
+- **NÃO** derrubar ou reiniciar o `squamata-login` enquanto outro serviço estiver em validação: ele é SPOF de autenticação. Se o usuário pedir "derrubar tudo", encerre o login **por último**.
+- **NÃO** contornar indisponibilidade do login com mock, token fixo, segredo alternativo ou login local: isso viola a [`constitution.md`](../../constitution.md). Reporte o bloqueio.
 
 ## Formato de saída
 
 1. Tabela final:
 
-   | Serviço | URL | Porta | Status | Terminal |
-   | :--- | :--- | :--- | :--- | :--- |
+   | Serviço | URL | Porta | Status | Camada | Terminal |
+   | :--- | :--- | :--- | :--- | :--- | :--- |
+
+   Na coluna **Camada**, marque `plataforma (SPOF)` para `squamata-login` e MongoDB.
 
 2. Ajustes de porta aplicados (arquivo → chave → valor antigo → novo).
-3. Pendências/bloqueios (ex.: variável de ambiente ausente).
+3. Pendências/bloqueios (ex.: variável de ambiente ausente). Se o `squamata-login` não subiu, destaque **primeiro** que a autenticação de todo o ecossistema está indisponível.
 4. Comandos para parar (adapte ao SO):
 
    ```bash

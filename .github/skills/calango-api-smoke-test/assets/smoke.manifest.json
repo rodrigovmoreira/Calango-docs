@@ -1,0 +1,152 @@
+{
+  "defaults": {
+    "timeoutMs": 5000,
+    "headers": {
+      "Accept": "application/json",
+      "User-Agent": "calango-api-smoke-test"
+    }
+  },
+  "services": {
+    "squamata-login": {
+      "label": "Squamata-Login (backend SSO)",
+      "dir": "Squamata-login/packages/backend",
+      "start": "npm run dev",
+      "port": 3001,
+      "portEnv": "PORT",
+      "baseUrl": "http://localhost:3001",
+      "tier": "plataforma",
+      "spof": true,
+      "ready": { "path": "/api/v1/health", "expect": [200] },
+      "probes": [
+        { "name": "health canônico", "method": "GET", "path": "/api/v1/health", "expect": [200] },
+        {
+          "name": "POST /auth/login executa o handler (404 = usuário inexistente, não rota ausente)",
+          "method": "POST",
+          "path": "/api/v1/auth/login",
+          "body": {},
+          "expect": [404],
+          "expectBodyContains": "encontrado"
+        },
+        { "name": "guard: health não deve estar sob /auth", "method": "GET", "path": "/api/v1/auth/health", "expect": [404] }
+      ]
+    },
+    "calango-food": {
+      "label": "Calango-Food (backend)",
+      "dir": "Calango-food/packages/backend",
+      "start": "npm run dev",
+      "port": 3002,
+      "portEnv": "PORT",
+      "baseUrl": "http://localhost:3002",
+      "tier": "app",
+      "dependsOn": ["squamata-login"],
+      "ready": { "path": "/api/v1/health", "expect": [200] },
+      "probes": [
+        { "name": "health canônico", "method": "GET", "path": "/api/v1/health", "expect": [200] },
+        { "name": "produtos exige auth", "method": "GET", "path": "/api/v1/products", "expect": [401], "auth": true, "expectAuthed": [200] },
+        { "name": "pedidos exige auth", "method": "GET", "path": "/api/v1/orders", "expect": [401], "auth": true, "expectAuthed": [200] },
+        { "name": "reorder de categorias montado (PUT)", "method": "PUT", "path": "/api/v1/categories/reorder", "body": { "items": [] }, "expect": [401], "auth": true, "expectAuthed": [200] },
+        { "name": "guard: /api/health não deve existir", "method": "GET", "path": "/api/health", "expect": [404] },
+        { "name": "guard: /api/products não deve existir", "method": "GET", "path": "/api/products", "expect": [404] }
+      ]
+    },
+    "calango-bot": {
+      "label": "Calango-Bot (backend CRM)",
+      "dir": "Calango-bot/backend",
+      "start": "npm run dev",
+      "port": 3003,
+      "portEnv": "BACKEND_PORT",
+      "baseUrl": "http://localhost:3003",
+      "tier": "app",
+      "dependsOn": ["squamata-login"],
+      "ready": { "path": "/api/v1/health", "expect": [200] },
+      "probes": [
+        { "name": "health canônico", "method": "GET", "path": "/api/v1/health", "expect": [200] },
+        { "name": "tags exige auth", "method": "GET", "path": "/api/v1/tags", "expect": [401], "auth": true, "expectAuthed": [200] },
+        { "name": "contatos exige auth", "method": "GET", "path": "/api/v1/contacts", "expect": [401], "auth": true, "expectAuthed": [200] },
+        { "name": "dashboard exige auth", "method": "GET", "path": "/api/v1/dashboard/summary", "expect": [401], "auth": true, "expectAuthed": [200] },
+        { "name": "webhook Meta permanece fora do versionamento", "method": "GET", "path": "/api/meta/webhook", "expect": [400] },
+        { "name": "guard: /api/health não deve existir", "method": "GET", "path": "/api/health", "expect": [404] },
+        { "name": "guard: /api/tags não deve existir", "method": "GET", "path": "/api/tags", "expect": [404] },
+        { "name": "guard: webhook Meta não deve estar em /api/v1", "method": "GET", "path": "/api/v1/meta/webhook", "expect": [404] }
+      ]
+    },
+    "squamata-gateway": {
+      "label": "Squamata-Gateway (pagamentos)",
+      "dir": "Squamata-gateway",
+      "start": "npm run dev",
+      "port": 3010,
+      "portEnv": "PORT",
+      "baseUrl": "http://localhost:3010",
+      "tier": "dominio",
+      "ready": { "path": "/api/v1/health", "expect": [200] },
+      "probes": [
+        { "name": "health canônico", "method": "GET", "path": "/api/v1/health", "expect": [200] },
+        { "name": "create valida payload", "method": "POST", "path": "/api/v1/payments/create", "body": {}, "expect": [400] },
+        { "name": "webhook de provedor (fora do versionamento)", "method": "POST", "path": "/api/webhooks/payments/pix", "body": {}, "expect": [200, 400] },
+        { "name": "guard: /health não deve existir", "method": "GET", "path": "/health", "expect": [404] },
+        { "name": "guard: /v1/payments não deve existir", "method": "POST", "path": "/v1/payments/create", "body": {}, "expect": [404] }
+      ]
+    },
+    "squamata-upload": {
+      "label": "Squamata-Upload (URLs assinadas)",
+      "dir": "Squamata-upload",
+      "start": "npm start",
+      "port": 3005,
+      "portEnv": "PORT",
+      "baseUrl": "http://localhost:3005",
+      "tier": "dominio",
+      "ready": { "path": "/api/v1/health", "expect": [200] },
+      "probes": [
+        { "name": "health canônico", "method": "GET", "path": "/api/v1/health", "expect": [200] },
+        { "name": "generate-upload-url exige chave", "method": "POST", "path": "/api/v1/upload/generate-upload-url", "body": { "fileName": "smoke.jpg", "contentType": "image/jpeg" }, "expect": [401], "auth": true, "expectAuthed": [200, 400] },
+        { "name": "guard: /health não deve existir", "method": "GET", "path": "/health", "expect": [404] },
+        { "name": "guard: /generate-upload-url não deve existir", "method": "POST", "path": "/generate-upload-url", "body": { "fileName": "smoke.jpg", "contentType": "image/jpeg" }, "expect": [404] }
+      ]
+    },
+    "squamata-cep": {
+      "label": "Squamata-CEP",
+      "dir": "Squamata-cep",
+      "start": "npm run dev",
+      "port": 3011,
+      "portEnv": "PORT",
+      "baseUrl": "http://localhost:3011",
+      "tier": "satelite",
+      "ready": { "path": "/api/v1/health", "expect": [200] },
+      "probes": [
+        { "name": "health canônico", "method": "GET", "path": "/api/v1/health", "expect": [200] },
+        { "name": "raiz responde", "method": "GET", "path": "/", "expect": [200] }
+      ]
+    },
+    "marianos-meat": {
+      "label": "marianos-meat (backend)",
+      "dir": "marianos-meat/backend",
+      "start": "npm run dev",
+      "port": 3020,
+      "portEnv": "PORT",
+      "baseUrl": "http://localhost:3020",
+      "tier": "satelite",
+      "dependsOn": ["squamata-login"],
+      "ready": { "path": "/api/v1/health", "expect": [200] },
+      "probes": [
+        { "name": "health canônico", "method": "GET", "path": "/api/v1/health", "expect": [200] },
+        { "name": "posts público", "method": "GET", "path": "/api/v1/posts", "expect": [200] },
+        { "name": "guard: /api/health não deve existir", "method": "GET", "path": "/api/health", "expect": [404] },
+        { "name": "guard: /api/posts não deve existir", "method": "GET", "path": "/api/posts", "expect": [404] }
+      ]
+    },
+    "squamata-headless": {
+      "label": "squamata-headless (Payload CMS)",
+      "dir": "squamata-headless",
+      "start": "pnpm dev",
+      "port": 3006,
+      "portEnv": "PORT",
+      "baseUrl": "http://localhost:3006",
+      "tier": "satelite",
+      "ready": { "path": "/admin", "expect": [200, 302, 307] },
+      "probes": [
+        { "name": "admin responde", "method": "GET", "path": "/admin", "expect": [200, 302, 307] },
+        { "name": "REST do Payload (exceção declarada, sem /v1)", "method": "GET", "path": "/api/tenants", "expect": [200, 401, 403] }
+      ]
+    }
+  }
+}

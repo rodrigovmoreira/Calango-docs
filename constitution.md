@@ -20,6 +20,27 @@ Todos os sistemas nascem para atender múltiplos clientes. O cruzamento de dados
 
 A simplicidade é nosso maior trunfo contra a dívida técnica, mas a eficiência de hardware dita as regras quando necessário.
 
+### 🛡️ Serviços Centrais são SPOF Declarado
+
+Nem todo serviço é igual. A arquitetura distingue três camadas, e a resposta a falha é **diferente** em cada uma:
+
+| Camada | Serviços | Comportamento em falha | Degradação graciosa? |
+| --- | --- | --- | --- |
+| **Plataforma (SPOF)** | MongoDB (`27018`), **Squamata-Login** | O ecossistema para. Não há alternativa nem fallback. | ❌ **Nunca** |
+| **Domínio (crítico)** | Squamata-Gateway (pagamentos), Squamata-Upload (mídia) | A capacidade correspondente para; o restante do sistema continua. | ⚠️ Parcial, com erro explícito |
+| **Satélite** | Squamata-CEP, squamata-headless, marianos-meat | Segue o fluxo principal e registra o erro. | ✅ Sim |
+
+**O Squamata-Login é o único provedor de identidade do ecossistema.** Nenhuma aplicação cria login local, emite token próprio ou aponta para outro emissor. Os clientes (Calango-Bot, Calango-Food, marianos-meat) delegam o SSO ao Squamata-Login e apenas **validam** o JWT recebido com o segredo compartilhado `JWT_SECRET_LOGIN`.
+
+Obrigações decorrentes:
+
+- **Ordem de operação:** subir o Squamata-Login **primeiro**; derrubá-lo **por último**. Nunca reiniciá-lo enquanto outro serviço está em validação.
+- **Mudança de contrato de token** (claims, `appSlug`, `tenantId`, expiração, segredo) é mudança de **plataforma**: exige atualizar todos os consumidores no mesmo trabalho.
+- **Sem `JWT_SECRET_LOGIN`, o serviço não sobe** — e jamais deve cair para um segredo default hardcoded (ver "Errar Rápido").
+- **Diagnóstico de 401 em cascata** começa no Squamata-Login (`GET /api/v1/health`), não no app que reclama.
+
+Sessões já emitidas continuam válidas até expirar (a validação é local e stateless); o que cessa é a **emissão de novos tokens**. Detalhamento e cenários de queda: [`Architecture.md` §1.1](./Architecture.md).
+
 ---
 
 ## 2. Padrão de Stack Tecnológica
@@ -74,6 +95,10 @@ Se um microsserviço não conseguir se conectar ao MongoDB ou se faltarem chaves
 ### 🌐 Respeitar a Rede Global
 
 Todo container Docker recém-criado deve obrigatoriamente conectar-se à rede externa `squamata-global` para interagir com o restante do ecossistema de forma segura.
+
+### 🧬 Contratos de API Versionados
+
+Toda API HTTP expõe seus recursos em **`/api/v{major}/<recurso>`** (ex.: `/api/v1/orders`) e oferece `GET /api/v1/health`. Mudanças compatíveis são aplicadas *in place*; quebra de contrato exige novo major com período de convivência e sinalização via headers `Deprecation`/`Sunset`. Rotas de webhook já cadastradas em provedores externos não são versionadas. Detalhes e exceções: [ADR 002](./docs/ADRs/002-versionamento-de-api.md).
 
 ---
 

@@ -11,6 +11,51 @@ Qualquer novo módulo, bot, API ou interface gráfica a ser desenvolvida neste e
 O ecossistema baseia-se em uma arquitetura de **Microsserviços Desacoplados**, projetada para garantir escalabilidade horizontal leve e isolamento de falhas dentro de um ambiente auto-hospedado.
 A espinha dorsal de segurança do sistema é o **Squamata-login**, um provedor de identidade centralizado que opera sob o modelo **Single Sign-On (SSO)**. As aplicações clientes delegam a autenticação para este microsserviço, que emite tokens criptografados baseados no escopo de acesso do usuário.
 
+### 1.1. Dependências Críticas e Ordem de Subida (SPOF)
+
+O **Squamata-Login é o ponto único de falha (SPOF) da autenticação** de todo o ecossistema. Ele não é um serviço satélite: sem ele, nenhuma aplicação permite novo login.
+
+#### Camadas de dependência
+
+| Camada | Serviço | Se cair | Impacto |
+| :--- | :--- | :--- | :--- |
+| **Plataforma** | MongoDB (`27018`) | Todos os serviços perdem persistência. | Total |
+| **Plataforma** | `squamata-login` | Nenhum login novo em Calango-Bot, Calango-Food, marianos-meat. | Total para autenticação |
+| **Domínio** | `squamata-gateway` | Checkout/pagamento falha; navegação e catálogo seguem. | Parcial |
+| **Domínio** | `squamata-upload` | Upload de imagem falha; resto do app segue. | Parcial |
+| **Satélite** | `squamata-cep`, `squamata-headless`, `marianos-meat` | Fluxo principal segue com erro registrado. | Baixo |
+
+> **Como ler esta tabela:** a camada descreve o impacto da queda **deste** serviço sobre os demais. Ela é independente de quem **consome** o login: `marianos-meat` é satélite (sua queda não afeta ninguém), mas ainda assim depende do Squamata-Login para autenticar. A dependência de identidade é universal para todo app que usa SSO.
+
+#### Quem autentica o quê
+
+Nenhum cliente possui formulário de login local (ver §4.2). O Squamata-Login emite o JWT e cada serviço apenas o **verifica localmente** com `JWT_SECRET_LOGIN`:
+
+| Consumidor | Evidência no código | Segredo |
+| :--- | :--- | :--- |
+| Calango-Bot | `backend/middleware/auth.js` → `jwt.verify(token, process.env.JWT_SECRET_LOGIN)` | `JWT_SECRET_LOGIN` |
+| Calango-Food | `packages/backend/src/middlewares/authMiddleware.js` → idem | `JWT_SECRET_LOGIN` |
+
+Consequência importante: a verificação é **stateless**. Com o Squamata-Login fora do ar, tokens já emitidos continuam válidos até expirarem — mas **não há emissão de novos tokens** e nenhum fluxo de refresh/OAuth/callback funciona.
+
+#### Ordem obrigatória de operação
+
+```
+Subir:    MongoDB → squamata-login (backend, frontend) → demais serviços
+Derrubar: demais serviços → squamata-login → MongoDB
+```
+
+Reiniciar o Squamata-Login no meio de uma bateria de testes invalida o diagnóstico de autenticação dos outros serviços.
+
+#### Regras de plataforma
+
+1. **Emissor único.** Nenhum serviço cria login, emite token nem aponta para outro emissor.
+2. **Segredo compartilhado idêntico** em Squamata-Login, Calango-Bot e Calango-Food. Divergência = 401 em todos.
+3. **Sem fallback de segredo.** `JWT_SECRET_LOGIN` ausente deve derrubar o boot (ver "Errar Rápido" na [`constitution.md`](./constitution.md)), nunca assumir valor default.
+4. **Mudança de contrato de token** (`appSlug`, `tenantId`, claims, expiração, segredo) exige atualizar todos os consumidores na mesma entrega.
+5. **Healthcheck obrigatório:** `GET /api/v1/health` — caminho único, sem alias.
+6. **Diagnóstico:** 401 em cascata → verificar o Squamata-Login primeiro.
+
 ---
 
 ## 2. Stack Tecnológica Padrão (Mandatória)
@@ -79,6 +124,18 @@ As aplicações front-end não possuem formulários de login locais. O fluxo obr
 ### 4.3. Mecanismos Obrigatórios de Defesa (Kill-Switch e Auditoria)
 * **Flag `isActive`:** Todo modelo de usuário possui este campo booleano. Se alterado para `false`, middlewares de segurança em todas as APIs devem negar o acesso imediatamente com HTTP 403.
 * **Logs de Auditoria:** Toda tentativa de login (sucesso ou falha) deve ser persistida na coleção `AuditLog`, registrando IP, data, tipo de evento e o `appSlug` solicitante.
+
+### 4.4. Versionamento de API (Decisão [ADR 002](./docs/ADRs/002-versionamento-de-api.md))
+Toda API HTTP do ecossistema expõe seus recursos no caminho canônico **`/api/v{major}/<recurso>`** (ex.: `/api/v1/orders`).
+
+* **Apenas o número *major***: `v1`, nunca `v1.0` ou `v1.4.2`. Correções e adições compatíveis são aplicadas *in place* dentro do mesmo major.
+* **O prefixo `/api` é mantido** — funciona como namespace de roteamento para os frontends e o proxy reverso.
+* **Um caminho único por rota.** Não há alias legado: cada recurso responde apenas em `/api/v1/...`. O smoke test valida a ausência dos caminhos antigos.
+* **Sem interceptor de rewrite:** os clientes declaram o caminho versionado explicitamente; a `baseURL` aponta apenas para o host.
+* **Webhooks de terceiros não são versionados** e vivem em namespace próprio (`/api/webhooks/...`), porque a URL é configurada no painel do provedor e precisa permanecer estável entre versões.
+* **Healthcheck padrão:** todo serviço expõe `GET /api/v1/health`.
+* **Quebra de contrato** exige novo major com período de convivência, sinalizado pelos headers `Deprecation` (RFC 9745) e `Sunset` (RFC 8594).
+* **Exceção declarada:** o `squamata-headless` (Payload CMS) mantém `/api/{collection}`, por ser contrato do framework.
 
 ---
 

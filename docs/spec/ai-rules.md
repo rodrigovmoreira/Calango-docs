@@ -27,13 +27,14 @@
 
 - **Microservices First:** pense cada módulo como um microsserviço independente e reutilizável.
 - **Reutilize o ecossistema** — nunca recrie engrenagens já existentes:
-  - Autenticação → **Squamata-login (SSO)**.
+  - Autenticação → **Squamata-login (SSO)**, o emissor único de identidade. Serviços apenas validam o JWT com `JWT_SECRET_LOGIN`.
   - Arquivos/imagens → **Squamata-upload** (MinIO).
   - Pagamentos/CEP → **APIs centrais do Squamata**.
+- **Squamata-Login é pré-requisito, não dependência opcional:** ao subir o stack, ele vem primeiro; ao derrubar, por último. Ao testar rotas autenticadas de Bot/Food/Mariano, confirme que o login está no ar antes de concluir que o serviço testado falhou. Ver [`Architecture.md` §1.1](../../Architecture.md).
 - **Multi-Tenancy inegociável:** toda requisição, banco e sessão deve carregar e validar o contexto de isolamento (`appSlug` e `tenantId`).
 - **Fail Fast:** se faltarem chaves obrigatórias no `.env` ou a conexão com o MongoDB falhar, o serviço deve **quebrar no boot** — nunca rode em estado zumbi.
 - **Statelessness:** containers são efêmeros; não armazene estado de usuário, sessões ou uploads temporários em memória local.
-- **Degradação Graciosa:** a falha de um serviço satélite **não** pode derrubar o fluxo principal — registre o erro no log e siga.
+- **Degradação Graciosa (apenas para satélites):** a falha de um serviço **satélite** (Squamata-CEP, squamata-headless, cliente satélite) não pode derrubar o fluxo principal — registre o erro e siga. **Isto não vale para a plataforma:** MongoDB e **Squamata-Login** são SPOF declarado. Sem o Squamata-Login, nenhum app do ecossistema permite novo login; não existe fallback, login local ou emissor alternativo.
 - **Idempotência:** rotas que alteram dados não podem duplicar ações ao receber o mesmo *payload* repetido.
 
 ---
