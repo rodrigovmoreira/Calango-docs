@@ -58,7 +58,15 @@ Inativar um vínculo **nunca** apaga o documento nem remove o item do array. Mar
 
 ### 5. Herança de leads
 
-Ao inativar, todos os contatos com `assignedTo = inativado` naquela empresa passam para o admin que executou a ação, na mesma operação. O endpoint devolve `transferredLeads` para a UI confirmar.
+Ao inativar, todos os contatos com `assignedTo = inativado` naquela empresa passam para um **herdeiro**, na mesma operação:
+
+- o herdeiro padrão é o **admin que executou** a ação;
+- o admin pode **escolher outro membro ativo** enviando `transferTo` no corpo da requisição (interface de desligamento, Roadmap 1 Ponto 6.4);
+- destino inválido — sem vínculo ativo na empresa, ou o próprio inativado — retorna `400 INVALID_TRANSFER_TARGET`.
+
+O endpoint devolve `transferredLeads` e `transferredTo` para a UI confirmar. Existe também `POST /api/v1/contacts/bulk-transfer` (`requireAdmin`) para redistribuir leads **sem** desligar ninguém — mesma validação de vínculo ativo no destino.
+
+Agendamentos **não** são herdados automaticamente: transferir uma agenda inteira pode entregar horários a alguém indisponível. É uma decisão operacional do admin, não um efeito colateral de desligamento.
 
 ### 6. Ciclo de vida da conta
 
@@ -101,12 +109,15 @@ O **`_id` do `SystemUser` é a identidade**. O e-mail é chave de login, não de
 ### Negativas / custos assumidos
 
 - Toda leitura de vínculo precisa considerar `status` (vínculos antigos sem o campo são tratados como ativos — regra em `utils/membership.js`).
-- A UI de equipe ainda não mostra inativos; isso é o item 6.4 do roadmap.
-- `deactivatedBy` é o único registro de auditoria de offboarding até o Ponto 5 ser implementado.
+- A UI de equipe **ainda não lista vínculos inativos**: `/business/team` devolve apenas ativos. O histórico existe no banco mas não é navegável pela tela.
+- `deactivatedBy`/`deactivatedAt` registram o offboarding; a autoria das demais escritas vem do plugin de auditoria (Roadmap 1, Ponto 5).
 
 ## Implementação
 
 - `backend/utils/membership.js` — regras compartilhadas (`isActiveMembership`, `activeMemberships`, `formatBusinesses`, `activeMembershipQuery`).
 - `backend/middleware/auth.js` — resolve contexto e papel apenas entre vínculos ativos; bloqueia com `403 NO_ACTIVE_BUSINESS` quando não há nenhum.
-- `PATCH /api/v1/business/team/:userId/deactivate` — offboarding (admin-only).
+- `PATCH /api/v1/business/team/:userId/deactivate` — offboarding (admin-only), com `transferTo` opcional.
+- `GET /api/v1/business/team/:userId/lead-count` — contagem de leads para o modal de desligamento (admin-only).
+- `POST /api/v1/contacts/bulk-transfer` — redistribuição avulsa de leads entre membros (admin-only).
 - `POST /api/v1/auth/accept-invite` — cria ou **reativa** o vínculo.
+- `backend/utils/auditPlugin.js` + `backend/utils/auditContext.js` — autoria (`createdBy`/`lastUpdatedBy`) em Contact, Appointment e BusinessConfig.
