@@ -20,7 +20,7 @@ Este é o **núcleo de governança** de todo o ecossistema de microsserviços da
 | [`.github/copilot-instructions.md`](./.github/copilot-instructions.md) | **Instruções always-on** para agentes de IA. Contém as regras que valem em toda tarefa, incluindo a criticidade do Squamata-Login (SPOF). |
 | `constitution.md` | Constituição de Engenharia (princípios, stack, "Dos" e "Don'ts"). |
 | `Architecture.md` | Arquitetura e topologia do ecossistema, com as **dependências críticas** (§1.1). |
-| [`docs/ADRs/`](./docs/ADRs) | Histórico de **decisões globais de arquitetura**: [`002-versionamento-de-api.md`](./docs/ADRs/002-versionamento-de-api.md), [`003-squamata-login-provedor-unico.md`](./docs/ADRs/003-squamata-login-provedor-unico.md) e [`004-vinculo-usuario-empresa.md`](./docs/ADRs/004-vinculo-usuario-empresa.md). |
+| [`docs/ADRs/`](./docs/ADRs) | Histórico de **decisões globais de arquitetura**: [`002-versionamento-de-api.md`](./docs/ADRs/002-versionamento-de-api.md), [`003-squamata-login-provedor-unico.md`](./docs/ADRs/003-squamata-login-provedor-unico.md), [`004-vinculo-usuario-empresa.md`](./docs/ADRs/004-vinculo-usuario-empresa.md) e [`005-armazenamento-sessoes-whatsapp.md`](./docs/ADRs/005-armazenamento-sessoes-whatsapp.md). |
 | [`.github/agents/`](./.github/agents) | Agentes especializados, como o [`calango-local-stack`](./.github/agents/calango-local-stack.agent.md) (subir o stack local). |
 | [`.github/skills/`](./.github/skills) | **Skills** de workflow sob demanda. Ex.: [`calango-api-smoke-test`](./.github/skills/calango-api-smoke-test/SKILL.md) — sobe os serviços e valida as APIs com requisições HTTP reais. |
 | `templates/` | Modelos reutilizáveis de documentação, como o [`spec-template.md`](./templates/spec-template.md). |
