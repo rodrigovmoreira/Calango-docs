@@ -55,6 +55,57 @@
 3. **Atualize a memória:** ao concluir uma spec ou refatoração importante, registre o que foi feito no arquivo de memória do repositório (ex.: `docs/MEMORY.md`).
 4. **Não invente dependências:** evite adicionar novos pacotes ao `package.json` a menos que sejam explicitamente solicitados na spec.
 
+### 4.1 Entrega: branch, commit e pull request
+
+Nenhum trabalho entra direto na branch de integração. A entrega é sempre **branch → commit → push → PR**, mesmo quando a mudança é pequena ou feita por agente de IA.
+
+**Branch base por repositório:**
+
+| Repositório | Branch base do PR |
+| --- | --- |
+| `Calango-bot` | `implementacao-login-squamata` (principal de trabalho hoje) |
+| `Calango-docs`, `Calango-food`, `Squamata-*`, `marianos-meat` | `main` |
+
+**Nome da branch:** `<tipo>/<escopo-curto>` — minúsculas, hífen, sem acento.
+
+| Tipo | Uso | Exemplo |
+| --- | --- | --- |
+| `feat` | funcionalidade nova | `feat/f4-envio-mensagens` |
+| `fix` | correção de bug | `fix/qr-expirado` |
+| `docs` | documentação, ADR, roadmap | `docs/fluxo-git-pr` |
+| `refactor` | reestruturação sem mudar comportamento | `refactor/whatsapp-adapter` |
+| `test` | testes | `test/inbound-hmac` |
+| `chore` | infra, dependências, limpeza | `chore/remove-wwebjs` |
+
+Branches de longa duração (`implementacao-*`, `roadmap/*`) são a **base**, não destino de commit diário.
+
+**Commit:** Conventional Commits com escopo — `tipo(escopo): descrição em PT-BR`, imperativo, sem ponto final. Corpo em bullets quando o "por quê" não couber no título. Sempre com o trailer:
+
+```
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+```
+
+**Corpo do PR (obrigatório):**
+
+| Seção | Conteúdo |
+| --- | --- |
+| O que mudou | bullets objetivos |
+| Por quê | decisão, ADR ou roadmap que motiva |
+| Como foi verificado | comandos e **saída real** (teste, `curl`, smoke test) |
+| Riscos | o que pode quebrar e como reverter |
+| Pendências | o que ficou fora e qual é o próximo passo |
+| Links | ADR/roadmap/issue relacionada |
+
+**Regras duras:**
+
+1. **Proibido commit direto na branch base** — o único caminho é o merge do PR.
+2. **Proibido `git push --force`** em branch com PR aberto.
+3. **O arquivo de memória do repositório (`docs/MEMORY.md` ou `MEMORY.md`) entra no mesmo PR** — é o item 3 acima.
+4. **Toda afirmação de sucesso precisa de evidência no PR.** Porta aberta não prova que a API responde.
+5. **Segredo nunca entra em commit nem em descrição de PR** (ver §5).
+
+**Como o agente abre o PR neste ambiente:** não há `gh` CLI e **não se deve instalá-lo nem rodar `gh auth login`/`gh auth setup-git`** — isso altera o *credential helper* e o *credential store* da máquina, que convive com duas identidades (pessoal `rodrigovmoreira` e organização `@gpssa.com.br` no Azure DevOps). O PR é criado por `POST https://api.github.com/repos/{owner}/{repo}/pulls`, reutilizando a credencial git já configurada, **sem imprimir, logar ou gravar** o token em arquivo.
+
 ---
 
 ## 5. Segurança e Segredos

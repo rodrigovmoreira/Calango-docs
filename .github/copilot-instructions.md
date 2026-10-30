@@ -56,6 +56,7 @@ Detalhes, classificação de serviços e o que acontece em cada cenário de qued
 
 ## 5. Antes de considerar a tarefa concluída
 
+- **Entrega é branch + PR**, nunca commit direto na branch base: nomear a branch, escrever o corpo do PR com as evidências reais e atualizar o `MEMORY.md` do repositório no mesmo PR. Regras completas: [ai-rules.md §4.1](../docs/spec/ai-rules.md).
 - Se a mudança toca rotas/API: rodar a skill [`calango-api-smoke-test`](./.github/skills/calango-api-smoke-test/SKILL.md) e reportar o resultado real das requisições.
 - Se a mudança toca autenticação/token: validar com o Squamata-Login no ar e citar no relatório que ele é pré-requisito.
 - Não declare sucesso sem verificar o comportamento — porta aberta não é prova de que a API responde.
