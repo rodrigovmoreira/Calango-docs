@@ -106,6 +106,8 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 
 **Como o agente abre o PR neste ambiente:** não há `gh` CLI e **não se deve instalá-lo nem rodar `gh auth login`/`gh auth setup-git`** — isso altera o *credential helper* e o *credential store* da máquina, que convive com duas identidades (pessoal `rodrigovmoreira` e organização `@gpssa.com.br` no Azure DevOps). O PR é criado por `POST https://api.github.com/repos/{owner}/{repo}/pulls`, reutilizando a credencial git já configurada, **sem imprimir, logar ou gravar** o token em arquivo.
 
+> **Encoding:** o corpo do PR com acentos precisa ser enviado como bytes UTF-8 explícitos. O PowerShell 5.1 envia `-Body` como ISO-8859-1 e a API responde `400` sem explicar. Codifique com `[System.Text.Encoding]::UTF8.GetBytes($json)` e `Content-Type: application/json; charset=utf-8`.
+
 ---
 
 ## 5. Segurança e Segredos
