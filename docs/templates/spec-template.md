@@ -1,5 +1,10 @@
 # Implementar o fluxo de checkout do Calango Food integrado ao Squamata-gateway
 
+> **Este arquivo é temporário.** Um spec por *iniciativa*, não por etapa: as fases moram aqui dentro.
+> Ao concluir a execução, o valor durável migra — decisão para **ADR**, o que falta para o **roadmap**,
+> o que foi feito e as armadilhas para o **`MEMORY.md`** — e o spec pode ser apagado.
+> Não crie um spec novo por fase. Ver [`ai-rules.md`](../spec/ai-rules.md) §4, itens 3 e 5.
+
 <!--
   TÍTULO E OBJETIVO DA TAREFA
   ---------------------------

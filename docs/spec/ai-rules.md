@@ -52,8 +52,29 @@
 
 1. **Leia a spec primeiro:** antes de codar, leia a especificação da tarefa (use o [`templates/spec-template.md`](../../templates/spec-template.md) como modelo).
 2. **Consulte a arquitetura:** leia a `Architecture.md` do repositório para entender o ecossistema e as integrações externas.
-3. **Atualize a memória:** ao concluir uma spec ou refatoração importante, registre o que foi feito no arquivo de memória do repositório (ex.: `docs/MEMORY.md`).
+3. **Atualize a memória no fim do plano, não a cada etapa.** Durante a execução, o progresso fica no **PR** (corpo e comentários). Ao concluir um plano longo, registre **uma única entrada consolidada** em `docs/MEMORY.md` — ou `MEMORY.md` na raiz — resumindo o processo inteiro: quais etapas existiram, o que mudou, o que ficou pendente e quais armadilhas apareceram.
+
+   **Não** escreva uma seção por etapa. Num plano de 8 fases isso vira 8 blocos com o mesmo peso, e a memória deixa de servir para consulta. O teste é simples: quem ler a entrada daqui a três meses precisa entender **o processo**, não a cronologia da execução.
+
+   | Onde registrar | O que vai ali |
+   | --- | --- |
+   | Corpo do PR | detalhe daquela entrega, evidências, riscos |
+   | `MEMORY.md` ao final | resumo consolidado do plano concluído |
+   | `MEMORY.md` durante | **só** armadilha ou fato que, se esquecido, quebra a etapa seguinte |
 4. **Não invente dependências:** evite adicionar novos pacotes ao `package.json` a menos que sejam explicitamente solicitados na spec.
+5. **Spec é temporário — não multiplique arquivos.** Um spec por **iniciativa**, nunca um por etapa: as fases moram dentro do mesmo arquivo. Specs demais são *overengineering*: a mesma informação em três lugares que divergem entre si.
+
+   **Ciclo de vida:** ao concluir a execução, o valor durável migra para o destino certo e o spec pode ser apagado.
+
+   | Conteúdo | Destino permanente |
+   | --- | --- |
+   | Decisão técnica com trade-off | **ADR** (`Calango-docs/docs/ADRs`) |
+   | O que ainda falta fazer | **Roadmap** do repositório |
+   | O que foi feito e as armadilhas | **`MEMORY.md`** |
+   | Como usar o serviço | **`README.md`** |
+   | Execução em andamento | **Spec** (temporário) |
+
+   **Regras:** no máximo **um spec ativo por iniciativa** e nenhum spec ativo sem execução em andamento; se a informação já está em ADR/roadmap/MEMORY, o spec **referencia**, não repete; fonte de verdade em caso de divergência é ADR > roadmap > MEMORY > spec > README.
 
 ### 4.1 Entrega: branch, commit e pull request
 
